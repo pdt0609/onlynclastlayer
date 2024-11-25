@@ -26,12 +26,13 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig
 # import wandb
 
 from transformers import BertTokenizer
-from losses import TripletLoss
+from losses import TripletLoss, ProxyNCA
 
 class Manager(object):
     def __init__(self, config) -> None:
         super().__init__()
         self.config = config
+        self.proxy = ProxyNCA(41, 768, level = 2).cuda()
         
     def _edist(self, x1, x2):
         '''
@@ -255,11 +256,13 @@ class Manager(object):
                 if flag == 0:
                     loss1 = self.llm_moment.contrastive_loss(hidden, labels, is_memory, des =rep_des, relation_2_cluster = relation_2_cluster)
 
-                    loss3 = triplet(hidden, rep_des,  cluster_centroids)
+                    #loss3 = triplet(hidden, rep_des,  cluster_centroids)
 
-                    loss4 = triplet(hidden, cluster_centroids, nearest_cluster_centroids)
+                    #loss4 = triplet(hidden, cluster_centroids, nearest_cluster_centroids)
+                    
+                    loss5 = self.proxy(hidden, target_classes).cuda()
 
-                    loss = loss1 + 2*loss2 + 0.5*loss3 + 0.5*loss4
+                    loss = loss1 + 2*loss2 + 0.5*loss5     #+ 0.5*loss3 + 0.5*loss4
                 else:
                     loss1 = self.llm_moment.contrastive_loss(hidden, labels, is_memory, des =rep_des, relation_2_cluster = relation_2_cluster)
 

@@ -256,13 +256,13 @@ class Manager(object):
                 if flag == 0:
                     loss1 = self.llm_moment.contrastive_loss(hidden, labels, is_memory, des =rep_des, relation_2_cluster = relation_2_cluster)
 
-                    loss3 = triplet(hidden, rep_des,  cluster_centroids)
+                    #loss3 = triplet(hidden, rep_des,  cluster_centroids)
 
-                    loss4 = triplet(hidden, cluster_centroids, nearest_cluster_centroids)
+                    #loss4 = triplet(hidden, cluster_centroids, nearest_cluster_centroids)
                     
                     loss5 = self.proxy(hidden, target_classes).cuda()
 
-                    loss = loss1 + 2*loss2 + 0.25*loss3 + 0.25*loss4 + 0.5*loss5
+                    loss = loss1 + 2*loss2  + 0.5*loss5
 
                 else:
                     loss1 = self.llm_moment.contrastive_loss(hidden, labels, is_memory, des =rep_des, relation_2_cluster = relation_2_cluster)
