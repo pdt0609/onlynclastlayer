@@ -3,6 +3,10 @@ The result of CPL using llama2 and mistral are running under float32 for fair co
 
 ---
 !pip install transformers==4.40.0 torch==2.3.0 scikit-learn ==1.4.2 nltk==3.8.1 retry==0.9.2
+
+!pip install pytorch_metric_learning
+
+
 ## BERT
 
 
