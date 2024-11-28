@@ -22,7 +22,7 @@ from encoder import EncodingModel
 # import wandb
 
 from transformers import BertTokenizer
-from losses import TripletLoss, SupInfoNCE
+from losses import TripletLoss, SupInfoNCE, ProxyNCA
 
 import logging
 import os
@@ -65,6 +65,7 @@ class Manager(object):
         #self.ema_update() = EncodingModel.ema_update()
         ########
         #self.update_queue(target, labels) = EncodingModel.update_queue(target, labels)
+        self.proxy = ProxyNCA(41, 768, level = 2).cuda()
         self.contrastive_loss_fct = SupInfoNCE(temp= 0.05).to(self.config.device)
         
     def _edist(self, x1, x2):
@@ -279,8 +280,10 @@ class Manager(object):
                     loss4 = triplet(hidden, cluster_centroids, nearest_cluster_centroids)
 
                     loss5 = self.contrastive_loss_fct(hidden, target, encoder.queue, labels, encoder.queue_labels, self.config.device)
+                    
+                    loss6 = self.proxy(hidden, target_classes).cuda()
 
-                    loss = loss1 + 2*loss2 + 0.25*loss3 + 0.25*loss4 + loss5
+                    loss = loss1 + 2*loss2 + 0.25*loss3 + 0.25*loss4 + loss5 + 0.5*loss6
 
                 else:
                     loss1 = self.moment.contrastive_loss(hidden, labels, is_memory, des =rep_des, relation_2_cluster = relation_2_cluster)
