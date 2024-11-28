@@ -271,6 +271,7 @@ class Manager(object):
                     nearest_cluster_centroids.append(top2_centroids)
 
                 nearest_cluster_centroids = torch.stack(nearest_cluster_centroids, dim = 0).to(self.config.device)
+                target_classes = labels
 
                 if flag == 0:
                     loss1 = self.moment.contrastive_loss(hidden, labels, is_memory, des =rep_des, relation_2_cluster = relation_2_cluster)
