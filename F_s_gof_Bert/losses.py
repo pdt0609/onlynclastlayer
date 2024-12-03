@@ -322,8 +322,10 @@ class ProxyNCA(torch.nn.Module):
 
         #self.proxies = Parameter(torch.randn(nb_classes, sz_embedding) / 8)
 
-        self.proxies = Parameter(generate_GOF(generate_orth(768, 41),level=2))
+        #self.proxies = Parameter(generate_GOF(generate_orth(768, 41),level=2))
         
+        self.proxies = Parameter(generate_orth(768, 40))
+
         #self.proxies = Parameter(generate_GOF(generate_orth(sz_embedding, nb_classes), level))   
         
         #print(self.proxies.shape()) #torch.Size([8, 300, 221])

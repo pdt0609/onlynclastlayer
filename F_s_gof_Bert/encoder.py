@@ -52,7 +52,7 @@ class EncodingModel(nn.Module):
 
         ##
         self.ema_decay = 0.99
-        self.queue_size = 512
+        self.queue_size = 128
         self.moco_lambda = 0.05
         self.moco_temperature = 0.05
         self.hiddensize = 768

@@ -1,34 +1,59 @@
+
+
+
+
+
+
 import argparse
-import torch
+import logging
+import os
 import random
 import sys
-import copy
+from copy import deepcopy
+from dataclasses import dataclass, field
+from functools import partial
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Tuple, Union
+from types import SimpleNamespace
+
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.cluster import KMeans
-from config import Config
 import torch.nn.functional as F
-from sklearn.cluster import AgglomerativeClustering
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import LambdaLR
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
-import warnings
-warnings.filterwarnings("ignore")
+from sklearn.cluster import KMeans, AgglomerativeClustering
 
+from transformers import (
+    BertTokenizer,
+    PreTrainedModel,
+    DataCollator,
+    TrainerCallback,
+    EvalPrediction,
+    set_seed,
+    DataCollatorWithPadding,
+)
 
+from config import Config
 from sampler import data_sampler_CFRL
 from data_loader import get_data_loader_BERT
 from utils import Moment
 from encoder import EncodingModel
-# import wandb
+from losses import TripletLoss, SupInfoNCE, ProxyNCA
 
-from transformers import BertTokenizer
-from losses import TripletLoss
-
+import warnings
+warnings.filterwarnings("ignore")
 class Manager(object):
     def __init__(self, config) -> None:
         super().__init__()
         self.config = config
-        
+        self.contrastive_loss_fct = SupInfoNCE(temp= 0.05).to(self.config.device)
+        self.proxy = ProxyNCA(80, 768).cuda()
+
     def _edist(self, x1, x2):
         '''
         input: x1 (B, H), x2 (N, H) ; N is the number of relations
@@ -148,6 +173,9 @@ class Manager(object):
         rep_seen_des = []
         relationid2_clustercentroids = {}
 
+        #########
+        encoder.init_target_net()
+        
         for i in range(epoch):         
             for batch_num, (instance, labels, ind) in enumerate(data_loader):
                 for k in instance.keys():
@@ -161,6 +189,13 @@ class Manager(object):
                 
                 hidden = encoder(instance) # b, dim
                 rep_des = encoder(batch_instance, is_des = True) # b, dim
+                ##########
+                encoder.ema_update()
+                target = encoder(instance, is_slow = True)
+                #encoder.init_queue(target, labels)
+                target_rep_des = encoder(batch_instance, is_des = True, is_slow = True)
+                encoder.init_queue(target_rep_des, labels)
+                ##########
 
                 with torch.no_grad():
                     rep_seen_des = []
@@ -219,14 +254,19 @@ class Manager(object):
 
                 nearest_cluster_centroids = torch.stack(nearest_cluster_centroids, dim = 0).to(self.config.device)
 
+                target_classes = labels
                 if flag == 0:
                     loss1 = self.moment.contrastive_loss(hidden, labels, is_memory, des =rep_des, relation_2_cluster = relation_2_cluster)
 
-                    loss3 = triplet(hidden, rep_des,  cluster_centroids)
+                    #loss3 = triplet(hidden, rep_des,  cluster_centroids)
 
-                    loss4 = triplet(hidden, cluster_centroids, nearest_cluster_centroids)
+                    #loss4 = triplet(hidden, cluster_centroids, nearest_cluster_centroids)
 
-                    loss = loss1 + 1*loss2 + 0.25*loss3 + 0.25*loss4
+                    loss5 = self.contrastive_loss_fct(hidden, target, encoder.queue, labels, encoder.queue_labels, self.config.device)
+
+                    loss6 = self.proxy(hidden, target_classes).cuda()
+
+                    loss = loss1 + 1*loss2  + 0.25*loss6 + 0.25*loss5 #+ 0.25*loss3 + 0.25*loss4
 
                 else:
                     loss1 = self.moment.contrastive_loss(hidden, labels, is_memory, des =rep_des, relation_2_cluster = relation_2_cluster)

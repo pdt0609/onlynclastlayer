@@ -65,8 +65,8 @@ class Manager(object):
         #self.ema_update() = EncodingModel.ema_update()
         ########
         #self.update_queue(target, labels) = EncodingModel.update_queue(target, labels)
-        self.proxy = ProxyNCA(41, 768, level = 2).cuda()
         self.contrastive_loss_fct = SupInfoNCE(temp= 0.05).to(self.config.device)
+        self.proxy = ProxyNCA(41, 768).cuda()
         
     def _edist(self, x1, x2):
         '''
@@ -202,13 +202,18 @@ class Manager(object):
 
                 
                 hidden = encoder(instance) # b, dim
+                
+                rep_des = encoder(batch_instance, is_des = True) # b, dim
+                
                 ##########
                 
                 encoder.ema_update()
                 target = encoder(instance, is_slow = True)
-                encoder.init_queue(target, labels)
+                #encoder.init_queue(target, labels)
+                target_rep_des = encoder(batch_instance, is_des = True, is_slow = True)
+                encoder.init_queue(target_rep_des, labels)
                 
-                rep_des = encoder(batch_instance, is_des = True) # b, dim
+                
                 
 
                 ##########
@@ -271,20 +276,21 @@ class Manager(object):
                     nearest_cluster_centroids.append(top2_centroids)
 
                 nearest_cluster_centroids = torch.stack(nearest_cluster_centroids, dim = 0).to(self.config.device)
-                target_classes = labels
 
+                target_classes = labels
                 if flag == 0:
                     loss1 = self.moment.contrastive_loss(hidden, labels, is_memory, des =rep_des, relation_2_cluster = relation_2_cluster)
 
-                    loss3 = triplet(hidden, rep_des,  cluster_centroids)
+                    #loss3 = triplet(hidden, rep_des,  cluster_centroids)
 
-                    loss4 = triplet(hidden, cluster_centroids, nearest_cluster_centroids)
+                    #loss4 = triplet(hidden, cluster_centroids, nearest_cluster_centroids)
 
                     loss5 = self.contrastive_loss_fct(hidden, target, encoder.queue, labels, encoder.queue_labels, self.config.device)
-                    
+
                     loss6 = self.proxy(hidden, target_classes).cuda()
 
-                    loss = loss1 + 2*loss2 + 0.25*loss3 + 0.25*loss4 + loss5 + 0.5*loss6
+
+                    loss = loss1  + 2*loss2 + loss5 +loss6*0.5 # + 0.25*loss3+ 0.25*loss4
 
                 else:
                     loss1 = self.moment.contrastive_loss(hidden, labels, is_memory, des =rep_des, relation_2_cluster = relation_2_cluster)
@@ -646,6 +652,8 @@ if __name__ == '__main__':
     for i in range(config.total_round):
         config.seed = base_seed + i * 100
         print('--------Round ', i)
+        print("----------------------------------",config.task_name)
+        print(config.relation_name)
         print('seed: ', config.seed)
         manager = Manager(config)
         acc, acc1, aac2 = manager.train()
